@@ -1,37 +1,69 @@
 package mi.lab.process
 
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import mu.KLogging
 import org.springframework.stereotype.Component
 import java.io.*
+import java.lang.Runnable
 import java.util.concurrent.Executors
+import javax.annotation.PostConstruct
 import javax.annotation.PreDestroy
+
+private val cpuCount = Runtime.getRuntime().availableProcessors()
 
 @Component
 class ProcessRunner {
     private companion object : KLogging()
 
     private val executorService = Executors.newSingleThreadExecutor();
+    private val channel = Channel<Pair<ProcessDescription, CompletableDeferred<*>>>(capacity = cpuCount)
 
     @PreDestroy
     fun shutdown() {
         executorService.shutdown()
+        channel.close()
     }
 
-    fun <R> computeInProcessAsync(processDescription: (onComplete: (R) -> Unit) -> ProcessDescription): Deferred<R> {
-        val result = CompletableDeferred<R>()
+    @PostConstruct
+    fun init() {
+        repeat(cpuCount) {
+            GlobalScope.launch {
+                for ((processDescription, result) in channel) {
+                    if (result.isCancelled) continue
 
-        val process = runProcess(processDescription { result.complete(it) })
+                    try {
+                        val process = runProcess(processDescription)
 
-        result.invokeOnCompletion {
-            if (process.isAlive) {
-                logger.warn { "canceling process" }
-                process.destroy()
+                        result.invokeOnCompletion {
+                            if (process.isAlive) {
+                                logger.warn { "canceling process" }
+                                process.destroy()
+                            }
+                        }
+                        result.join()
+                    } catch (e: Exception) {
+                        result.completeExceptionally(e)
+                    }
+                }
             }
         }
+    }
 
-        return result
+    fun <R> computeInProcessAsync(processDescriptionSupplier: (onComplete: (R) -> Unit) -> ProcessDescription): Deferred<R> {
+        val result = CompletableDeferred<R>()
+        return GlobalScope.async {
+
+            val processDescription = processDescriptionSupplier { result.complete(it) }
+
+            channel.send(processDescription to result)
+
+            result.await()
+        }.also {
+            it.invokeOnCompletion {
+                result.cancel()
+            }
+        }
     }
 
     private fun runProcess(processDescription: ProcessDescription): Process {

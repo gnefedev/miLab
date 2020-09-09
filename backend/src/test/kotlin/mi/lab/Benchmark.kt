@@ -21,6 +21,7 @@ class Benchmark @Autowired constructor(
     fun runManyRequests() {
         val cpuCount = Runtime.getRuntime().availableProcessors()
 
+        //cpuCount * 6 takes 12293 ms
         val params = (0..cpuCount * 6)
                 .map { i -> FactorialTask.Params(32345L + i, BigDecimal.valueOf(2).pow(512) + BigDecimal.ONE) }
 
