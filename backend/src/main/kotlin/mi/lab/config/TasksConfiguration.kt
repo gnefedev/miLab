@@ -11,6 +11,7 @@ class TasksConfiguration(
         private val processRunner: ProcessRunner,
         private val taskFactoryCache: TaskFactoryCache
 ) {
+    //TODO write BeanPostProcessor to wrap factories by annotation
     @Bean
     fun factorialTaskFactory() = taskFactoryCache.wrap(FactorialTaskFactory(processRunner))
 }

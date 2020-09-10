@@ -4,8 +4,8 @@ import kotlinx.coroutines.*
 import mi.lab.tasks.TaskFactory
 import mi.lab.tasks.TaskFactoryCache
 import org.junit.Assert.*
+import org.junit.jupiter.api.RepeatedTest
 import org.junit.jupiter.api.Test
-import org.springframework.test.annotation.Repeat
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -17,35 +17,39 @@ class TaskFactoryCacheTest {
         val wrapped = taskFactoryCache.wrap(buildTaskFactory { it * 2 })
 
         runBlocking {
-            assertEquals(4, wrapped.computeAsync(2).await())
+            assertEquals(4, wrapped.compute(this, 2))
         }
     }
 
-    @Repeat(10)
+    @RepeatedTest(10)
     @Test
     fun callShouldBeCached() {
-        val lock = CompletableDeferred<Unit>()
+        val firstLock = CompletableDeferred<Unit>()
+        val secondLock = CompletableDeferred<Unit>()
         val counter = AtomicInteger(0)
 
         val wrapped = taskFactoryCache.wrap(buildTaskFactory {
-            lock.await()
+            firstLock.await()
             counter.incrementAndGet()
+            secondLock.await()
             it * 2
         })
 
         runBlocking {
-            val firstTask = wrapped.computeAsync(3)
-            val secondTask = wrapped.computeAsync(3)
-            lock.complete(Unit)
+            val firstTask = GlobalScope.async { wrapped.compute(this, 3) }
+            val secondTask = GlobalScope.async { wrapped.compute(this, 3) }
+            firstLock.complete(Unit)
+            delay(100)
+            secondLock.complete(Unit)
             assertEquals(6, firstTask.await())
             assertEquals(6, secondTask.await())
             assertEquals(1, counter.get())
         }
     }
 
-    @Repeat(10)
+    @RepeatedTest(10)
     @Test
-    fun cacheShouldBeClearedAfterCall() {
+    fun cacheShouldBeClearedAfterCall() = runBlocking {
         val counter = AtomicInteger(0)
 
         val wrapped = taskFactoryCache.wrap(buildTaskFactory {
@@ -53,18 +57,17 @@ class TaskFactoryCacheTest {
             it * 2
         })
 
-        runBlocking {
-            assertEquals(8, wrapped.computeAsync(4).await())
-            //cleaning is also async
-            delay(50)
-            assertEquals(8, wrapped.computeAsync(4).await())
-            assertEquals(2, counter.get())
-        }
+
+        assertEquals(8, coroutineScope { wrapped.compute(this, 4) })
+        //cleaning is also async
+        delay(100)
+        assertEquals(8, coroutineScope { wrapped.compute(this, 4) })
+        assertEquals(2, counter.get())
     }
 
-    @Repeat(10)
+    @RepeatedTest(10)
     @Test
-    fun taskShouldBeCanceledIfEveryClientIsCanceled() {
+    fun taskShouldBeCanceledIfEveryClientIsCanceled() = runBlocking {
         val firstLock = CompletableDeferred<Unit>()
         val secondLock = CompletableDeferred<Unit>()
         val canceled = AtomicBoolean(false)
@@ -81,24 +84,26 @@ class TaskFactoryCacheTest {
             }
         })
 
-        runBlocking {
-            val firstTask = wrapped.computeAsync(6)
-            val secondTask = wrapped.computeAsync(6)
-            firstTask.cancel()
-            secondTask.cancel()
-            //cancelling is also async
-            delay(50)
-
-            firstLock.complete(Unit)
-
-            secondLock.await()
-            assertTrue(canceled.get())
+        val firstTask = GlobalScope.async {
+            wrapped.compute(this, 6)
         }
+        val secondTask = GlobalScope.async {
+            wrapped.compute(this, 6)
+        }
+        firstTask.cancel()
+        secondTask.cancel()
+        //cancelling is also async
+        delay(100)
+
+        firstLock.complete(Unit)
+
+        secondLock.await()
+        assertTrue(canceled.get())
     }
 
-    @Repeat(10)
+    @RepeatedTest(10)
     @Test
-    fun taskShouldNotBeCanceledIfOneClientIsCanceled() {
+    fun taskShouldNotBeCanceledIfOneClientIsCanceled() = runBlocking {
         val firstLock = CompletableDeferred<Unit>()
         val secondLock = CompletableDeferred<Unit>()
         val canceled = AtomicBoolean(false)
@@ -115,24 +120,26 @@ class TaskFactoryCacheTest {
             }
         })
 
-        runBlocking {
-            val firstTask = wrapped.computeAsync(7)
-            val secondTask = wrapped.computeAsync(7)
-            firstTask.cancel()
-            //cancelling is also async
-            delay(50)
 
-            firstLock.complete(Unit)
-
-            secondLock.await()
-            assertFalse(canceled.get())
-            assertEquals(14, secondTask.await())
+        val firstTask = GlobalScope.async {
+            wrapped.compute(this, 7)
         }
+        val secondTask = GlobalScope.async {
+            wrapped.compute(this, 7)
+        }
+        firstTask.cancel()
+        //cancelling is also async
+        delay(100)
+
+        firstLock.complete(Unit)
+
+        secondLock.await()
+        assertEquals(14, secondTask.await())
+        assertFalse(canceled.get())
     }
 
-    private fun buildTaskFactory(block: suspend CoroutineScope.(Int) -> Int) = object : TaskFactory<Int, Int> {
-        override fun computeAsync(input: Int) = GlobalScope.async {
-            block.invoke(this, input)
-        }
+    private fun buildTaskFactory(block: suspend (Int) -> Int) = object : TaskFactory<Int, Int> {
+        override suspend fun compute(coroutineScope: CoroutineScope, input: Int): Int =
+                withContext(coroutineScope.coroutineContext) { block(input) }
     }
 }

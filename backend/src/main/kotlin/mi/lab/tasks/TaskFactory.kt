@@ -1,7 +1,7 @@
 package mi.lab.tasks
 
-import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.CoroutineScope
 
 interface TaskFactory<T : Any, R : Any> {
-    fun computeAsync(input: T): Deferred<R>
+    suspend fun compute(coroutineScope: CoroutineScope, input: T): R
 }
