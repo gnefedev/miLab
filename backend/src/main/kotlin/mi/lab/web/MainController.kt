@@ -29,10 +29,15 @@ class MainController(
             @Min(1) @PathVariable("B") b: BigDecimal
     ): Mono<BigDecimal> {
         logger.info { "handling factorial A: $a, B: $b" }
-        val scope = CoroutineScope(EmptyCoroutineContext)
-        return scope.async {
+        return inCancelableMono {
             factorialTaskFactory.compute(this, FactorialTask.Params(a, b))
         }
+    }
+
+    @ExperimentalCoroutinesApi
+    private fun <T> inCancelableMono(block: suspend CoroutineScope.() -> T): Mono<T> {
+        val scope = CoroutineScope(EmptyCoroutineContext)
+        return scope.async(block = block)
                 .asMono(GlobalScope.coroutineContext)
                 .doOnCancel { scope.cancel() }
     }
