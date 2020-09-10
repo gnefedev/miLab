@@ -1,12 +1,11 @@
 package mi.lab.tasks
 
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.*
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.annotation.PreDestroy
+import kotlin.coroutines.EmptyCoroutineContext
 
 @Component
 class TaskFactoryCache {
@@ -14,22 +13,21 @@ class TaskFactoryCache {
 
     @Suppress("UNCHECKED_CAST")
     fun <T : Any, R : Any> wrap(taskFactory: TaskFactory<T, R>) = object : TaskFactory<T, R> {
-        override fun computeAsync(input: T): Deferred<R> {
+        override suspend fun compute(coroutineScope: CoroutineScope, input: T): R {
             val (fromCache, counter) = cache.getOrPut(input) {
-                taskFactory.computeAsync(input) to AtomicInteger(0)
+                CoroutineScope(EmptyCoroutineContext).async {
+                    taskFactory.compute(this, input)
+                } to AtomicInteger(0)
             } as Pair<Deferred<R>, AtomicInteger>
             counter.incrementAndGet()
 
-            val forClient = GlobalScope.async {
-                fromCache.await()
-            }
-            forClient.invokeOnCompletion {
+            coroutineScope.coroutineContext[Job.Key]!!.invokeOnCompletion {
                 if (counter.decrementAndGet() == 0) {
                     fromCache.cancel()
                     cache.remove(input)
                 }
             }
-            return forClient
+            return withContext(coroutineScope.coroutineContext) { fromCache.await() }
         }
     }
 

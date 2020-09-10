@@ -1,7 +1,6 @@
 package mi.lab.web
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.reactor.asMono
 import mi.lab.tasks.FactorialTask
 import mi.lab.tasks.TaskFactory
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import javax.validation.constraints.Min
+import kotlin.coroutines.EmptyCoroutineContext
 
 
 @Validated
@@ -29,7 +29,11 @@ class MainController(
             @Min(1) @PathVariable("B") b: BigDecimal
     ): Mono<BigDecimal> {
         logger.info { "handling factorial A: $a, B: $b" }
-        val task = factorialTaskFactory.computeAsync(FactorialTask.Params(a, b))
-        return task.asMono(GlobalScope.coroutineContext).doOnCancel { task.cancel() }
+        val scope = CoroutineScope(EmptyCoroutineContext)
+        return scope.async {
+            factorialTaskFactory.compute(this, FactorialTask.Params(a, b))
+        }
+                .asMono(GlobalScope.coroutineContext)
+                .doOnCancel { scope.cancel() }
     }
 }
