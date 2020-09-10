@@ -6,7 +6,6 @@ import java.math.BigDecimal
 
 
 fun main() {
-    Thread.sleep(2000)
     val reader = BufferedReader(InputStreamReader(System.`in`))
     val a = reader.readLine().toLong()
     val b = reader.readLine().toBigDecimal()
