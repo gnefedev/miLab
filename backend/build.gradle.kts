@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm")
     id("org.jetbrains.kotlin.plugin.spring") version Versions.kotlin
+    application
 }
 
 java {
@@ -22,4 +23,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:${Versions.kotlinCoroutines}")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:${Versions.springBoot}")
+}
+
+application {
+    mainClassName = "mi.lab.ApplicationKt"
 }
