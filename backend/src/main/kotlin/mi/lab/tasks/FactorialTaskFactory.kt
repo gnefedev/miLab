@@ -12,7 +12,7 @@ class FactorialTaskFactory(
             processRunner.computeInProcess(coroutineScope) { onComplete ->
                 ProcessDescription(
                         "mi.lab.FactorialMainKt",
-                        "1g",
+                        "256m",
                         onProcessStart = {
                             it.write("${input.a}\n")
                             it.write("${input.b}\n")

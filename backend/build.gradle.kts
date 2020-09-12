@@ -21,7 +21,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux:${Versions.springBoot}")
     implementation("org.springframework.boot:spring-boot-starter-validation:${Versions.springBoot}")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:${Versions.kotlinCoroutines}")
-    implementation("com.google.guava:guava:${Versions.guava}")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:${Versions.springBoot}")
 }

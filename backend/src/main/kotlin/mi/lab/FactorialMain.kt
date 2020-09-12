@@ -1,13 +1,21 @@
 package mi.lab
 
-import com.google.common.math.BigIntegerMath
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.math.BigDecimal
 
 
 fun main() {
     val reader = BufferedReader(InputStreamReader(System.`in`))
-    val a = reader.readLine().toInt()
-    val b = reader.readLine().toBigInteger()
-    println(BigIntegerMath.factorial(a) % b)
+    val a = reader.readLine().toLong()
+    val b = reader.readLine().toBigDecimal()
+    println(factorial(a) % b)
+}
+
+private fun factorial(a: Long): BigDecimal {
+    var result = BigDecimal.ONE
+    for (i in 2..a) {
+        result *= i.toBigDecimal()
+    }
+    return result
 }
