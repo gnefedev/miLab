@@ -12,7 +12,7 @@ class FactorialTaskFactory(
             processRunner.computeInProcessAsync { onComplete ->
                 ProcessDescription(
                         "mi.lab.FactorialMainKt",
-                        "256m",
+                        "1g",
                         onProcessStart = {
                             it.write("${input.a}\n")
                             it.write("${input.b}\n")
